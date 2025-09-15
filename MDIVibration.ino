@@ -1,3 +1,6 @@
+//Created by Erfan Roshan
+//version 1.0.0
+
 #include "Wire.h"
 #include <MPU6050_light.h>
 #include <SPI.h>
@@ -25,8 +28,7 @@ int EEPROMADDLevel = 8;
 float Xoffset = 0;
 float Yoffset = 0;
 float Zoffset = 0;
-
-unsigned long startTime = 0;
+float levelOffset = 0;
 
 class Axis{
   private:
@@ -39,7 +41,7 @@ class Axis{
     this->x = x - Xoffset;
     this->y = y - Yoffset;
     this->z = z - Zoffset;
-    this->angle = angle;
+    this->angle = angle - levelOffset;
   }
 
   float getX(){
@@ -65,6 +67,15 @@ void setup() {
   setupRadio();
   //read the offset for all 3 axises
   readOffset();
+  Serial.println("******************************");
+  Serial.println("Offset values: ");
+  Serial.print("X offset: ");
+  Serial.println(EEPROM.read(EEPROMADDX));
+  Serial.print("Y offset: ");
+  Serial.println(EEPROM.read(EEPROMADDY));
+  Serial.print("Z offset: ");
+  Serial.println(EEPROM.read(EEPROMADDZ));
+  Serial.println("******************************");
   pinMode(rxPin, INPUT);
   pinMode(txPin, OUTPUT);
  
@@ -80,7 +91,6 @@ void setup() {
   
   delay(100);
   //in case it needs to be installed upside down --> mpu.upsideDownMounting = true;
-  // calibrate 
   //FIXME: print SUCC on the screen
   Serial.println("Done!\n");
 
@@ -88,17 +98,11 @@ void setup() {
 }
 
 void loop() {
-
-  unsigned long currTime = millis();
   buttonState = digitalRead(buttonPin);
   if(buttonState == HIGH){
     calibrate();
   }
-  if(currTime - startTime > 2){
     sendData();
-    startTime = currTime;
-  }
-
  
 }
 
@@ -108,7 +112,7 @@ void setupRadio(){
  // radio.openWritingPipe(0xF0F0F0F0E1LL);
   radio.setPALevel(RF24_PA_MAX);
   const uint64_t pipe = 0xE8E8F0F0E1LL;
-  //radio.openReadingPipe(1, pipe);
+  radio.openReadingPipe(1, pipe);
 
   radio.enableDynamicPayloads();
   radio.powerUp();
@@ -116,13 +120,14 @@ void setupRadio(){
 }
 
 void sendData(){
- if((millis()-timer)>2){
+  unsigned long currTime = millis();
+ if((currTime-timer)>2){
     mpu.update();
     Axis axis(mpu.getAccX(), mpu.getAccY(), mpu.getAccZ(), mpu.getAccAngleX());
     Serial.println(axis.convertedData());
     String data = axis.convertedData();
     radio.write(&data, sizeof(data));
-    timer = millis();
+    timer = currTime;
   }
 }
 
@@ -156,6 +161,7 @@ void readOffset(){
     Xoffset = EEPROM.read(EEPROMADDX);
     Yoffset = EEPROM.read(EEPROMADDX);
     Zoffset = EEPROM.read(EEPROMADDX);
+    levelOffset = EEPROM.read(EEPROMADDLevel);
 }
 
 
